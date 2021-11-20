@@ -3,7 +3,7 @@ package sudoku_test
 import (
 	"testing"
 
-	"github.com/kingkupps/sudoku/sudoku"
+	"github.com/kingkupps/sudoku"
 	"github.com/stretchr/testify/assert"
 )
 

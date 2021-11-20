@@ -1,3 +1,4 @@
+// Package sudoku implements a type for visualizing and solving 9x9 Sudoku puzzles.
 package sudoku
 
 import (
@@ -7,12 +8,18 @@ import (
 	"unicode"
 )
 
+// ErrInvalidConfig is returned if sudoku.LoadGame is passed a string with
+// invalid symbols or a length not equal to 81.
 var ErrInvalidConfig = errors.New("config must specify 81 cells and contain only 1-9 and \".\"")
+
+// ErrUnsolvable is returned by Game.Solve
 var ErrUnsolvable = errors.New("puzzle is not solveable")
 
 // Game represents a standard 9x9 Sudoku game.
 type Game [81]int
 
+// LoadGame returns a Game from a flattened string representation of a Sudoku
+// puzzle. See sudoku_test.go for examples of the format.
 func LoadGame(config string) (Game, error) {
 	var g [81]int
 	if len(config) != 81 {
@@ -32,17 +39,18 @@ func LoadGame(config string) (Game, error) {
 	return g, nil
 }
 
-// Solve fills all empty spaces of g or returns a non-nil error if g is unsolvable.
+// Solve fills all empty spaces of g or returns a non-nil error if g is
+// unsolvable.
 func (g *Game) Solve() error {
-	var rows [9][10]bool
-	var cols [9][10]bool
-	var boxes [9][10]bool
+	var rows [9]int
+	var cols [9]int
+	var boxes [9]int
 	for i, val := range g {
 		r, c := rowColOf(i)
 		b := box(r, c)
-		rows[r][val] = true
-		cols[c][val] = true
-		boxes[b][val] = true
+		rows[r] = addOption(rows[r], val)
+		cols[c] = addOption(cols[c], val)
+		boxes[b] = addOption(boxes[b], val)
 	}
 
 	var empties []cell
@@ -53,8 +61,8 @@ func (g *Game) Solve() error {
 
 		empty := newCell(i)
 		for op := 1; op <= 9; op++ {
-			if !rows[empty.row][op] && !cols[empty.col][op] && !boxes[empty.box][op] {
-				empty.options[op] = true
+			if !hasOption(rows[empty.row], op) && !hasOption(cols[empty.col], op) && !hasOption(boxes[empty.box], op) {
+				empty.options = addOption(empty.options, op)
 			}
 		}
 		empties = append(empties, empty)
@@ -73,7 +81,7 @@ func backtrackSolve(g *Game, empties []cell) error {
 	nextEmptyIndex := -1
 	nextOptionsCount := -1
 	for i, cell := range empties {
-		if opCount := cell.optionCount(); nextEmptyIndex == -1 || opCount < nextOptionsCount {
+		if opCount := numOptions(cell.options); nextEmptyIndex == -1 || opCount < nextOptionsCount {
 			nextEmptyIndex = i
 			nextOptionsCount = opCount
 		}
@@ -91,7 +99,7 @@ func backtrackSolve(g *Game, empties []cell) error {
 	// Try to fill nextCell with each avaialble option
 	nextCell := empties[numEmpties-1]
 	for value := 1; value <= 9; value++ {
-		if !nextCell.options[value] {
+		if !hasOption(nextCell.options, value) {
 			continue
 		}
 
@@ -99,7 +107,7 @@ func backtrackSolve(g *Game, empties []cell) error {
 		for i := 0; i < len(empties)-1; i++ {
 			if nextCell.sharesConstraintWith(empties[i]) {
 				cellsToRestore = append(cellsToRestore, i)
-				empties[i].options[value] = false
+				empties[i].options = removeOption(empties[i].options, value)
 			}
 		}
 
@@ -109,40 +117,43 @@ func backtrackSolve(g *Game, empties []cell) error {
 		}
 
 		for _, index := range cellsToRestore {
-			empties[index].options[value] = true
+			empties[index].options = addOption(empties[index].options, value)
 		}
 	}
 
 	return ErrUnsolvable
 }
 
+// IsSolved returns whether g is correctly filled out according to the rules
+// of Sudoku.
 func (g Game) IsSolved() bool {
-	var rows [9][10]bool
-	var cols [9][10]bool
-	var boxes [9][10]bool
+	var rows [9]int
+	var cols [9]int
+	var boxes [9]int
 	for i, val := range g {
 		r, c := rowColOf(i)
 		b := box(r, c)
 
-		if rows[r][val] {
+		if hasOption(rows[r], val) {
 			return false
 		}
-		rows[r][val] = true
+		rows[r] = addOption(rows[r], val)
 
-		if cols[c][val] {
+		if hasOption(cols[c], val) {
 			return false
 		}
-		cols[c][val] = true
+		cols[c] = addOption(cols[c], val)
 
-		if boxes[b][val] {
+		if hasOption(boxes[b], val) {
 			return false
 		}
-		boxes[b][val] = true
+		boxes[b] = addOption(boxes[b], val)
 	}
 	return true
 }
 
-// String returns a minimal string representation of the board, using "." for empty spaces.
+// String returns a minimal string representation of the board, using "." for
+// empty spaces.
 func (g Game) String() string {
 	var s strings.Builder
 	for _, val := range g {
@@ -155,6 +166,8 @@ func (g Game) String() string {
 	return s.String()
 }
 
+// Pformat returns a string representation of g that's closer to the typical
+// human representation of a Sudoku puzzle (i.e. 9x9 grid).
 func (g Game) Pformat() string {
 	var s strings.Builder
 	for i, val := range g {
@@ -181,6 +194,7 @@ func (g Game) Pformat() string {
 	return s.String()
 }
 
+// Display is equivalent to fmt.Println(g.Pformat()).
 func (g Game) Display() {
 	fmt.Println(g.Pformat())
 }

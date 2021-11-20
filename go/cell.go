@@ -4,7 +4,7 @@ type cell struct {
 	row     int
 	col     int
 	box     int
-	options [10]bool
+	options int
 }
 
 func newCell(index int) cell {
@@ -29,16 +29,6 @@ func (c cell) index() int {
 
 func (c cell) sharesConstraintWith(o cell) bool {
 	return c.row == o.row || c.col == o.col || c.box == o.box
-}
-
-func (c cell) optionCount() int {
-	count := 0
-	for i := 1; i <= 9; i++ {
-		if c.options[i] {
-			count++
-		}
-	}
-	return count
 }
 
 func box(r, c int) int {
