@@ -34,7 +34,9 @@ func LoadGame(config string) (Game, error) {
 
 // Solve fills all empty spaces of g or returns a non-nil error if g is unsolvable.
 func (g *Game) Solve() error {
-	rows, cols, boxes := valuesByGroup(), valuesByGroup(), valuesByGroup()
+	var rows [9][10]bool
+	var cols [9][10]bool
+	var boxes [9][10]bool
 	for i, val := range g {
 		r, c := rowColOf(i)
 		b := box(r, c)
@@ -43,71 +45,81 @@ func (g *Game) Solve() error {
 		boxes[b][val] = true
 	}
 
-	options := make(map[int]options)
+	var empties []cell
 	for i, val := range g {
 		if val != 0 {
 			continue
 		}
 
-		r, c := rowColOf(i)
-		b := box(r, c)
-
-		optionsForCell := make(map[int]bool)
+		empty := newCell(i)
 		for op := 1; op <= 9; op++ {
-			if !rows[r][op] && !cols[c][op] && !boxes[b][op] {
-				optionsForCell[op] = true
+			if !rows[empty.row][op] && !cols[empty.col][op] && !boxes[empty.box][op] {
+				empty.options[op] = true
 			}
 		}
-		options[i] = optionsForCell
+		empties = append(empties, empty)
 	}
 
-	return backtrackSolve(g, options)
+	return backtrackSolve(g, empties)
 }
 
-func backtrackSolve(g *Game, cellOptions map[int]options) error {
-	if len(cellOptions) == 0 {
+func backtrackSolve(g *Game, empties []cell) error {
+	numEmpties := len(empties)
+	if numEmpties == 0 {
 		return nil
 	}
 
-	var nextCell int
-	var nextOps options
-	for cell, cellOps := range cellOptions {
-		if nextOps == nil || len(cellOps) < len(nextOps) {
-			nextCell = cell
-			nextOps = cellOps
+	// Pick the empty cell with the fewest remaining possibilities
+	nextEmptyIndex := -1
+	nextOptionsCount := -1
+	for i, cell := range empties {
+		if opCount := cell.optionCount(); nextEmptyIndex == -1 || opCount < nextOptionsCount {
+			nextEmptyIndex = i
+			nextOptionsCount = opCount
 		}
 	}
 
-	if len(nextOps) == 0 {
+	// We took a wrong turn and need to backtrack
+	if nextOptionsCount == 0 {
 		return ErrUnsolvable
 	}
 
-	delete(cellOptions, nextCell)
-	for op := range nextOps {
-		var cellsToRestore []int
-		for cell := range cellOptions {
-			if sharesConstraintWith(nextCell, cell) {
-				cellsToRestore = append(cellsToRestore, cell)
-				delete(cellOptions[cell], op)
+	// Moves the next candidate cell to the end of empties so we can
+	// efficiently pass the remaining empty cells to further calls
+	empties[nextEmptyIndex], empties[numEmpties-1] = empties[numEmpties-1], empties[nextEmptyIndex]
+
+	// Try to fill nextCell with each avaialble option
+	nextCell := empties[numEmpties-1]
+	for value := 1; value <= 9; value++ {
+		if !nextCell.options[value] {
+			continue
+		}
+
+		cellsToRestore := make([]int, 0, len(empties))
+		for i := 0; i < len(empties)-1; i++ {
+			if nextCell.sharesConstraintWith(empties[i]) {
+				cellsToRestore = append(cellsToRestore, i)
+				empties[i].options[value] = false
 			}
 		}
 
-		if backtrackSolve(g, cellOptions) == nil {
-			g[nextCell] = op
+		if backtrackSolve(g, empties[:numEmpties-1]) == nil {
+			g[nextCell.index()] = value
 			return nil
 		}
 
-		for _, cell := range cellsToRestore {
-			cellOptions[cell][op] = true
+		for _, index := range cellsToRestore {
+			empties[index].options[value] = true
 		}
 	}
-	cellOptions[nextCell] = nextOps
 
 	return ErrUnsolvable
 }
 
 func (g Game) IsSolved() bool {
-	rows, cols, boxes := valuesByGroup(), valuesByGroup(), valuesByGroup()
+	var rows [9][10]bool
+	var cols [9][10]bool
+	var boxes [9][10]bool
 	for i, val := range g {
 		r, c := rowColOf(i)
 		b := box(r, c)
@@ -128,39 +140,6 @@ func (g Game) IsSolved() bool {
 		boxes[b][val] = true
 	}
 	return true
-}
-
-func valuesByGroup() []options {
-	groups := make([]options, 10)
-	for i := range groups {
-		groups[i] = make(map[int]bool)
-	}
-	return groups
-}
-
-func box(r, c int) int {
-	if r < 3 {
-		return c / 3
-	}
-	if r < 6 {
-		return (c / 3) + 3
-	}
-	return (c / 3) + 6
-}
-
-func rowColOf(index int) (int, int) {
-	return (index / 9), (index % 9)
-}
-
-func sharesConstraintWith(first, second int) bool {
-	r1, c1 := rowColOf(first)
-	r2, c2 := rowColOf(second)
-	if r1 == r2 || c1 == c2 {
-		return true
-	}
-	b1 := box(r1, c1)
-	b2 := box(r2, c2)
-	return b1 == b2
 }
 
 // String returns a minimal string representation of the board, using "." for empty spaces.
@@ -205,5 +184,3 @@ func (g Game) Pformat() string {
 func (g Game) Display() {
 	fmt.Println(g.Pformat())
 }
-
-type options map[int]bool
