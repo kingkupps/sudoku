@@ -1,0 +1,6 @@
+- [Install Rust](https://www.rust-lang.org/tools/install)
+- Production build
+  - `cargo build -r`
+  - `./target/release/rust`
+- Debug runs - `cargo run`
+- Tests - `cargo test`
