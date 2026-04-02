@@ -21,7 +21,7 @@ impl Iterator for OptionMaskIterator {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone)]
 pub struct OptionMask {
     mask: u16,
     size: u16,

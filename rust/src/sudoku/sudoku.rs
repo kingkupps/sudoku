@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 use std::result::Result;
 
 use super::cell::Cell;
@@ -32,39 +32,26 @@ impl Sudoku {
             }
         }
 
-        let mut rv: HashMap<u32, OptionMask> = HashMap::new();
-        let mut cv: HashMap<u32, OptionMask> = HashMap::new();
-        let mut sv: HashMap<u32, OptionMask> = HashMap::new();
-        for idx in 0..9 {
-            rv.insert(idx, OptionMask::all());
-            cv.insert(idx, OptionMask::all());
-            sv.insert(idx, OptionMask::all());
-        }
-
+        let mut rv = [OptionMask::all(); 9];
+        let mut cv = [OptionMask::all(); 9];
+        let mut sv = [OptionMask::all(); 9];
         for (idx, val) in copy.iter().enumerate() {
             let cell = Cell::from_idx(idx.try_into().unwrap());
             if *val == 0 {
                 continue;
             }
-
-            if let Some(ops) = rv.get_mut(&cell.row) {
-                ops.remove(val);
-            }
-            if let Some(ops) = cv.get_mut(&cell.col) {
-                ops.remove(val);
-            }
-            if let Some(ops) = sv.get_mut(&cell.sec) {
-                ops.remove(val);
-            }
+            rv[cell.row as usize].remove(val);
+            cv[cell.col as usize].remove(val);
+            sv[cell.sec as usize].remove(val);
         }
 
         for empty in empties.iter_mut() {
-            let rmask = rv.get(&empty.row).unwrap();
-            let cmask = cv.get(&empty.col).unwrap();
-            let smask = sv.get(&empty.sec).unwrap();
-            empty.options.only(rmask);
-            empty.options.only(cmask);
-            empty.options.only(smask);
+            let rmask = rv[empty.row as usize];
+            let cmask = cv[empty.col as usize];
+            let smask = sv[empty.sec as usize];
+            empty.options.only(&rmask);
+            empty.options.only(&cmask);
+            empty.options.only(&smask);
         }
 
         let solved = solve(&mut copy, &mut empties);
